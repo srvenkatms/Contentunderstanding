@@ -212,7 +212,7 @@ The application handles various error scenarios:
 ## Limitations
 
 - The current implementation uses a simple word-overlap algorithm for paraphrase detection
-- For production use, consider integrating with Azure OpenAI for semantic similarity
+- Semantic similarity via embeddings recommended for production use
 - Large documents may take longer to process
 - Some document formats may require specific preprocessing
 
