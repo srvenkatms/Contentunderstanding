@@ -1,6 +1,6 @@
 # Azure Content Understanding - Clause Checker
 
-A Python application that uses Azure Document Intelligence (Content Understanding) to check whether a specific clause exists in a document and returns evidence.
+A Python application that uses Azure Content Understanding to check whether a specific clause exists in a document and returns evidence.
 
 📖 **[Read the Complete Technical Documentation](./TECHNICAL_DOCUMENTATION.md)** - Comprehensive guide covering Azure Content Understanding, LLMs integration, and Python architecture.
 
@@ -72,7 +72,7 @@ The application uses a custom analyzer with the following configuration:
 There are two ways to use this application:
 
 1. **REST API-based approach** (Recommended for new projects) - Uses Azure Content Understanding REST API with Terraform infrastructure
-2. **SDK-based approach** (Existing) - Uses Azure Document Intelligence Python SDK
+2. **SDK-based approach** (Existing) - Uses Azure Content Understanding Python SDK
 
 ### Option 1: REST API Setup (Recommended)
 
@@ -138,8 +138,8 @@ python check_clause_rest.py contract.pdf "payment terms" --output results.json
 ## Prerequisites
 
 - Python 3.8 or higher
-- Azure subscription with Document Intelligence (formerly Form Recognizer) resource
-- Azure Document Intelligence API key and endpoint
+- Azure subscription with Content Understanding (formerly Form Recognizer) resource
+- Azure Content Understanding API key and endpoint
 - (Optional) Azure OpenAI resource for enhanced semantic comparison
 
 ## Installation
@@ -273,8 +273,8 @@ The analysis returns a dictionary with the following fields:
 Initialize the ClauseChecker with Azure credentials.
 
 **Parameters:**
-- `endpoint` (str, optional): Azure Document Intelligence endpoint URL
-- `key` (str, optional): Azure Document Intelligence API key
+- `endpoint` (str, optional): Azure Content Understanding endpoint URL
+- `key` (str, optional): Azure Content Understanding API key
 
 If not provided, credentials are loaded from environment variables.
 
@@ -345,7 +345,7 @@ Contentunderstanding/
 
 ## How It Works
 
-1. **Document Loading**: The application reads the document using Azure Document Intelligence
+1. **Document Loading**: The application reads the document using Azure Content Understanding
 2. **Content Extraction**: Extracts text content using OCR and layout analysis
 3. **Clause Analysis**: Analyzes the text to find:
    - **Exact matches**: Direct text matching
@@ -486,7 +486,7 @@ This project is provided as-is for demonstration purposes.
 ## Support
 
 For issues related to:
-- **Azure Document Intelligence**: Check [Azure Documentation](https://learn.microsoft.com/azure/ai-services/document-intelligence/)
+- **Azure Content Understanding**: Check [Azure Documentation](https://learn.microsoft.com/azure/ai-services/content-understanding/)
 - **This Application**: Open an issue on GitHub
 
 ## Authors
@@ -495,5 +495,5 @@ For issues related to:
 
 ## Acknowledgments
 
-- Azure Document Intelligence team for the robust document analysis capabilities
+- Azure Content Understanding team for the robust document analysis capabilities
 - Azure OpenAI for advanced AI models

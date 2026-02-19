@@ -105,7 +105,7 @@ def main():
         print()
         print("Please ensure you have set up your Azure credentials:")
         print("1. Copy .env.example to .env")
-        print("2. Fill in your Azure Document Intelligence endpoint and key")
+        print("2. Fill in your Azure Content Understanding endpoint and key")
         print()
         sys.exit(1)
     except FileNotFoundError as e:
