@@ -259,5 +259,5 @@ See the main [README.md](../README.md) for usage instructions.
 ## Additional Resources
 
 - [Azure AI Services Documentation](https://learn.microsoft.com/azure/ai-services/)
-- [Azure AI Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/)
+- [Azure AI Content Understanding](https://learn.microsoft.com/azure/ai-services/content-understanding/)
 - [Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)

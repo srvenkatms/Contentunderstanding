@@ -19,7 +19,7 @@
 
 ## Overview
 
-The Azure Content Understanding Clause Checker is a sophisticated Python application that combines Azure's Document Intelligence (Content Understanding) service with Large Language Models to analyze documents and detect the presence of specific clauses. The system uses multiple AI-powered techniques including exact text matching, semantic similarity analysis, and paraphrase detection to provide accurate clause identification with supporting evidence.
+The Azure Content Understanding Clause Checker is a sophisticated Python application that combines Azure's Content Understanding service with Large Language Models to analyze documents and detect the presence of specific clauses. The system uses multiple AI-powered techniques including exact text matching, semantic similarity analysis, and paraphrase detection to provide accurate clause identification with supporting evidence.
 
 ### Key Capabilities
 
@@ -35,7 +35,7 @@ The Azure Content Understanding Clause Checker is a sophisticated Python applica
 
 ### What is Azure Content Understanding?
 
-Azure Content Understanding (formerly Azure Document Intelligence/Form Recognizer) is a cloud-based AI service that extracts structured information from documents. It uses:
+Azure Content Understanding (formerly Form Recognizer) is a cloud-based AI service that extracts structured information from documents. It uses:
 
 1. **Optical Character Recognition (OCR)**: Extracts text from images and scanned documents
 2. **Layout Analysis**: Understands document structure (paragraphs, tables, sections)
@@ -49,7 +49,7 @@ Azure Content Understanding serves as the **document ingestion and text extracti
 ```
 Document File (PDF/DOCX/Image)
          ↓
-Azure Document Intelligence SDK
+Azure Content Understanding SDK
          ↓
 OCR + Layout Analysis
          ↓
@@ -78,7 +78,7 @@ Clause Analysis Engine
 ### Implementation Details
 
 ```python
-# Azure Document Intelligence Client Initialization
+# Azure Content Understanding Client Initialization
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 
@@ -410,7 +410,7 @@ class ClauseChecker:
 
 ```python
 # Core Azure Integration
-azure-ai-documentintelligence>=1.0.0  # Document Intelligence SDK
+azure-ai-documentintelligence>=1.0.0  # Content Understanding SDK
 
 # AI and ML
 openai>=1.0.0                         # Azure OpenAI client
@@ -514,7 +514,7 @@ def check_clause(self, document_path, target_clause):
 
 **Responsibilities**:
 - Load document files from filesystem
-- Interface with Azure Document Intelligence
+- Interface with Azure Content Understanding
 - Extract and structure text content
 
 **Key Functions**:
@@ -523,7 +523,7 @@ def check_clause(self, document_path, target_clause):
 with open(document_path, "rb") as f:
     document_bytes = f.read()
 
-# Azure Document Intelligence analysis
+# Azure Content Understanding analysis
 poller = self.client.begin_analyze_document(
     model_id="prebuilt-document",
     document=document_bytes
@@ -744,7 +744,7 @@ def check_clause(self, document_path: str, target_clause: str):
         document_bytes = f.read()
 ```
 
-#### Step 2: Azure Document Intelligence Processing
+#### Step 2: Azure Content Understanding Processing
 
 ```python
 # Submit document for analysis
@@ -888,7 +888,7 @@ result = {
 }
 ```
 
-#### Azure Document Intelligence Response
+#### Azure Content Understanding Response
 
 ```python
 {
@@ -1595,7 +1595,7 @@ Defines the structure of analysis results:
 Environment variables for Azure credentials:
 
 ```bash
-# Azure Document Intelligence
+# Azure Content Understanding
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
 AZURE_DOCUMENT_INTELLIGENCE_KEY=your-api-key-here
 
@@ -1870,7 +1870,7 @@ def validate_inputs(document_path, target_clause):
 
 | Operation | Typical Duration | Factors |
 |-----------|-----------------|---------|
-| Document Intelligence OCR | 2-10 seconds | Document size, pages, complexity |
+| Content Understanding OCR | 2-10 seconds | Document size, pages, complexity |
 | Azure OpenAI Embedding | 200-500ms | Text length, API load |
 | TF-IDF Similarity | 10-100ms | Document length |
 | Word Overlap | 1-10ms | Text length |
@@ -2210,7 +2210,7 @@ self.endpoint = validate_endpoint(endpoint)
 
 ## Conclusion
 
-The Azure Content Understanding Clause Checker demonstrates the power of combining Azure's Document Intelligence service with Large Language Models to create intelligent document analysis applications. The system's three-tier fallback approach ensures reliability across different deployment environments, while the modular Python architecture enables easy maintenance and extension.
+The Azure Content Understanding Clause Checker demonstrates the power of combining Azure's Content Understanding service with Large Language Models to create intelligent document analysis applications. The system's three-tier fallback approach ensures reliability across different deployment environments, while the modular Python architecture enables easy maintenance and extension.
 
 ### Key Takeaways
 
@@ -2236,7 +2236,7 @@ The Azure Content Understanding Clause Checker demonstrates the power of combini
 
 ### A. Glossary
 
-- **Azure Content Understanding**: Azure's AI service for document analysis (formerly Document Intelligence)
+- **Azure Content Understanding**: Azure's AI service for document analysis
 - **Clause**: A specific section or provision in a legal or business document
 - **Embedding**: A high-dimensional vector representation of text
 - **Cosine Similarity**: A metric measuring the similarity between two vectors
@@ -2246,7 +2246,7 @@ The Azure Content Understanding Clause Checker demonstrates the power of combini
 
 ### B. References
 
-- [Azure Document Intelligence Documentation](https://learn.microsoft.com/azure/ai-services/document-intelligence/)
+- [Azure Content Understanding Documentation](https://learn.microsoft.com/azure/ai-services/content-understanding/)
 - [Azure OpenAI Service](https://learn.microsoft.com/azure/ai-services/openai/)
 - [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings)
 - [scikit-learn TF-IDF](https://scikit-learn.org/stable/modules/feature_extraction.html#tfidf-term-weighting)

@@ -2,7 +2,7 @@
 Azure Content Understanding Clause Checker
 
 This module provides functionality to check if a specific clause exists in a document
-using Azure Document Intelligence (Content Understanding) service with semantic comparison.
+using Azure Content Understanding service with semantic comparison.
 
 The module supports multiple matching strategies:
 - Exact match: Direct text matching with configurable context
@@ -62,9 +62,9 @@ class ClauseChecker:
     available dependencies and configuration settings.
     
     Attributes:
-        client (DocumentIntelligenceClient): Azure Document Intelligence client
-        endpoint (str): Azure Document Intelligence endpoint URL
-        key (str): Azure Document Intelligence API key
+        client (DocumentIntelligenceClient): Azure Content Understanding client
+        endpoint (str): Azure Content Understanding endpoint URL
+        key (str): Azure Content Understanding API key
         analyzer_config (Dict): Configuration for the analyzer
         openai_client (Optional[AzureOpenAI]): Azure OpenAI client if available
         
@@ -81,8 +81,8 @@ class ClauseChecker:
         Initialize the ClauseChecker with Azure credentials.
 
         Args:
-            endpoint: Azure Document Intelligence endpoint URL
-            key: Azure Document Intelligence API key
+            endpoint: Azure Content Understanding endpoint URL
+            key: Azure Content Understanding API key
         """
         # Load environment variables
         load_dotenv()
