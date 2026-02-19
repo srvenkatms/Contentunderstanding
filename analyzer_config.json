@@ -8,7 +8,14 @@
     "returnDetails": true,
     "estimateFieldSourceAndConfidence": true,
     "useSemanticComparison": true,
-    "semanticSimilarityThreshold": 0.75
+    "semanticSimilarityThreshold": 0.75,
+    "paraphraseThreshold": 0.6,
+    "wordOverlapThreshold": 0.6,
+    "evidenceContextChars": 50,
+    "maxEvidenceLength": 200,
+    "windowSize": 200,
+    "azureOpenAIApiVersion": "2024-02-01",
+    "tfidfMaxFeatures": 384
   },
   "models": {
     "completion": "gpt-4.1-mini",

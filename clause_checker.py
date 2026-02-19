@@ -3,15 +3,38 @@ Azure Content Understanding Clause Checker
 
 This module provides functionality to check if a specific clause exists in a document
 using Azure Document Intelligence (Content Understanding) service with semantic comparison.
+
+The module supports multiple matching strategies:
+- Exact match: Direct text matching with configurable context
+- Semantic match: AI-powered similarity using embeddings (requires Azure OpenAI)
+- Paraphrase match: Word overlap and TF-IDF similarity
+- Missing: No match found
+
+Configuration is loaded from analyzer_config.json and can be customized for different
+use cases. The module gracefully degrades when optional dependencies are not available.
+
+Example:
+    >>> from clause_checker import ClauseChecker
+    >>> checker = ClauseChecker()
+    >>> result = checker.check_clause("contract.pdf", "confidentiality clause")
+    >>> print(f"Found: {result['clausePresent']}, Type: {result['matchType']}")
+
+Attributes:
+    OPENAI_AVAILABLE (bool): Whether Azure OpenAI SDK is available
+    SKLEARN_AVAILABLE (bool): Whether scikit-learn is available for TF-IDF
 """
 
 import os
 import json
-from typing import Dict, Any, Optional, List
+import logging
+from typing import Dict, Any, Optional, List, Tuple
 import numpy as np
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 from dotenv import load_dotenv
+
+# Get logger for this module - applications should configure logging at root level
+logger = logging.getLogger(__name__)
 
 try:
     from openai import AzureOpenAI
@@ -30,6 +53,27 @@ except ImportError:
 class ClauseChecker:
     """
     A class to check for clause existence in documents using Azure Content Understanding.
+    
+    This class provides intelligent document analysis with multiple matching strategies
+    for finding clauses or similar content in documents. It supports exact matching,
+    semantic similarity (with Azure OpenAI), and word overlap methods.
+    
+    The checker automatically selects the best available matching method based on
+    available dependencies and configuration settings.
+    
+    Attributes:
+        client (DocumentIntelligenceClient): Azure Document Intelligence client
+        endpoint (str): Azure Document Intelligence endpoint URL
+        key (str): Azure Document Intelligence API key
+        analyzer_config (Dict): Configuration for the analyzer
+        openai_client (Optional[AzureOpenAI]): Azure OpenAI client if available
+        
+    Example:
+        >>> checker = ClauseChecker()
+        >>> result = checker.check_clause("document.pdf", "payment terms")
+        >>> if result['clausePresent']:
+        ...     print(f"Found {result['matchType']} match")
+        ...     print(f"Evidence: {result['evidenceQuote']}")
     """
 
     def __init__(self, endpoint: Optional[str] = None, key: Optional[str] = None):
@@ -68,13 +112,14 @@ class ClauseChecker:
         
         if OPENAI_AVAILABLE and self.openai_endpoint and self.openai_key:
             try:
+                api_version = self.analyzer_config.get("config", {}).get("azureOpenAIApiVersion", "2024-02-01")
                 self.openai_client = AzureOpenAI(
                     azure_endpoint=self.openai_endpoint,
                     api_key=self.openai_key,
-                    api_version="2024-02-01"
+                    api_version=api_version
                 )
             except Exception as e:
-                print(f"Warning: Could not initialize Azure OpenAI client: {e}")
+                logger.warning(f"Could not initialize Azure OpenAI client: {e}")
                 self.openai_client = None
 
     def _load_analyzer_config(self) -> Dict[str, Any]:
@@ -104,7 +149,14 @@ class ClauseChecker:
                     "returnDetails": True,
                     "estimateFieldSourceAndConfidence": True,
                     "useSemanticComparison": True,
-                    "semanticSimilarityThreshold": 0.75
+                    "semanticSimilarityThreshold": 0.75,
+                    "paraphraseThreshold": 0.6,
+                    "wordOverlapThreshold": 0.6,
+                    "evidenceContextChars": 50,
+                    "maxEvidenceLength": 200,
+                    "windowSize": 200,
+                    "azureOpenAIApiVersion": "2024-02-01",
+                    "tfidfMaxFeatures": 384
                 },
                 "models": {
                     "completion": "gpt-4.1-mini",
@@ -153,15 +205,30 @@ class ClauseChecker:
                 - matchType (str): "Exact", "Paraphrase", or "Missing"
                 - evidenceQuote (str): Supporting quote from the document
                 - confidence (float): Confidence score if available
+                
+        Raises:
+            FileNotFoundError: If the document file does not exist
+            ValueError: If the document is empty or cannot be read
         """
+        # Validate document path
+        if not os.path.exists(document_path):
+            raise FileNotFoundError(f"Document not found: {document_path}")
+        
+        if not os.path.isfile(document_path):
+            raise ValueError(f"Path is not a file: {document_path}")
+        
         # Read the document
         with open(document_path, "rb") as f:
             document_bytes = f.read()
+        
+        if not document_bytes:
+            raise ValueError(f"Document is empty: {document_path}")
 
         # For now, we'll use the prebuilt-document model to extract content
         # In a production scenario, you would create/use a custom model with the analyzer config
+        model_id = self.analyzer_config.get("baseAnalyzerId", "prebuilt-document")
         poller = self.client.begin_analyze_document(
-            model_id="prebuilt-document",
+            model_id=model_id,
             document=document_bytes,
         )
         result = poller.result()
@@ -170,6 +237,9 @@ class ClauseChecker:
         document_text = ""
         if result.content:
             document_text = result.content
+        
+        if not document_text:
+            raise ValueError(f"No text content could be extracted from document: {document_path}")
 
         # Analyze the document for the target clause
         analysis_result = self._analyze_for_clause(document_text, target_clause)
@@ -197,7 +267,7 @@ class ClauseChecker:
             )
             return response.data[0].embedding
         except Exception as e:
-            print(f"Warning: OpenAI embedding failed: {e}")
+            logger.warning(f"OpenAI embedding failed: {e}")
             return None
 
     def _get_embedding_tfidf(self, texts: List[str]) -> np.ndarray:
@@ -214,10 +284,11 @@ class ClauseChecker:
             return None
         
         try:
-            vectorizer = TfidfVectorizer(max_features=384)
+            max_features = self.analyzer_config.get("config", {}).get("tfidfMaxFeatures", 384)
+            vectorizer = TfidfVectorizer(max_features=max_features)
             return vectorizer.fit_transform(texts).toarray()
         except Exception as e:
-            print(f"Warning: TF-IDF embedding failed: {e}")
+            logger.warning(f"TF-IDF embedding failed: {e}")
             return None
 
     def _calculate_semantic_similarity(self, text1: str, text2: str) -> float:
@@ -260,19 +331,57 @@ class ClauseChecker:
         union = words1.union(words2)
         return len(intersection) / len(union) if union else 0.0
 
+    def _split_into_sentences(self, text: str) -> List[str]:
+        """
+        Split text into sentences with better handling of abbreviations and edge cases.
+        
+        Args:
+            text: Text to split
+            
+        Returns:
+            List of sentences
+        """
+        # Simple sentence splitting that handles common abbreviations
+        import re
+        
+        # Replace common abbreviations temporarily to avoid splitting on them
+        text = re.sub(r'\bDr\.', 'Dr<DOT>', text)
+        text = re.sub(r'\bMr\.', 'Mr<DOT>', text)
+        text = re.sub(r'\bMrs\.', 'Mrs<DOT>', text)
+        text = re.sub(r'\bMs\.', 'Ms<DOT>', text)
+        text = re.sub(r'\bInc\.', 'Inc<DOT>', text)
+        text = re.sub(r'\bLtd\.', 'Ltd<DOT>', text)
+        text = re.sub(r'\bCo\.', 'Co<DOT>', text)
+        text = re.sub(r'\bCorp\.', 'Corp<DOT>', text)
+        # Handle various version number formats (v1.0, 1.0, 2.1.3, etc.)
+        text = re.sub(r'\b(?:v\d+|\d+)\.\d+(?:\.\d+)?\b', lambda m: m.group().replace('.', '<DOT>'), text)
+        # Handle currency with or without commas and decimals ($100, $1,234.56, $100.00, etc.)
+        text = re.sub(r'[$€£¥]\d{1,3}(?:,\d{3})*(?:\.\d{2})?', lambda m: m.group().replace('.', '<DOT>'), text)
+        
+        # Split on periods followed by space and capital letter, or end of string
+        sentences = re.split(r'\.\s+(?=[A-Z])|\.(?=\s*$)', text)
+        
+        # Restore abbreviations
+        sentences = [s.replace('<DOT>', '.').strip() for s in sentences if s.strip()]
+        
+        return sentences
+
     def _find_most_similar_section(self, document_text: str, target_clause: str, 
-                                   window_size: int = 200) -> tuple[str, float]:
+                                   window_size: Optional[int] = None) -> Tuple[str, float]:
         """
         Find the most semantically similar section in the document.
 
         Args:
             document_text: Full document text
             target_clause: Target clause to match
-            window_size: Size of sliding window in characters
+            window_size: Size of sliding window in characters (uses config if not provided)
 
         Returns:
             Tuple of (best matching text, similarity score)
         """
+        if window_size is None:
+            window_size = self.analyzer_config.get("config", {}).get("windowSize", 200)
+        
         if len(document_text) < window_size:
             similarity = self._calculate_semantic_similarity(document_text, target_clause)
             return document_text, similarity
@@ -281,7 +390,7 @@ class ClauseChecker:
         best_section = ""
         
         # Split into sentences for better context
-        sentences = [s.strip() for s in document_text.split('.') if s.strip()]
+        sentences = self._split_into_sentences(document_text)
         
         # Check each sentence and surrounding context
         for i, sentence in enumerate(sentences):
@@ -298,6 +407,115 @@ class ClauseChecker:
         
         return best_section, best_similarity
 
+    def _check_exact_match(self, document_text: str, target_clause: str) -> Optional[Dict[str, Any]]:
+        """
+        Check for exact match of the target clause in the document.
+        
+        Args:
+            document_text: Full document text
+            target_clause: Target clause to match
+            
+        Returns:
+            Result dictionary if found, None otherwise
+        """
+        doc_lower = document_text.lower()
+        clause_lower = target_clause.lower()
+        
+        if clause_lower in doc_lower:
+            # Find the exact location and extract surrounding context
+            start_idx = doc_lower.index(clause_lower)
+            end_idx = start_idx + len(target_clause)
+            
+            # Extract evidence with some context
+            context_chars = self.analyzer_config.get("config", {}).get("evidenceContextChars", 50)
+            context_start = max(0, start_idx - context_chars)
+            context_end = min(len(document_text), end_idx + context_chars)
+            evidence = document_text[context_start:context_end].strip()
+
+            return {
+                "clausePresent": True,
+                "matchType": "Exact",
+                "evidenceQuote": evidence,
+                "confidence": 1.0,
+                "targetClause": target_clause
+            }
+        return None
+
+    def _check_semantic_match(self, document_text: str, target_clause: str) -> Optional[Dict[str, Any]]:
+        """
+        Check for semantic match using embeddings.
+        
+        Args:
+            document_text: Full document text
+            target_clause: Target clause to match
+            
+        Returns:
+            Result dictionary if found, None otherwise
+        """
+        use_semantic = self.analyzer_config.get("config", {}).get("useSemanticComparison", True)
+        if not use_semantic:
+            return None
+            
+        semantic_threshold = self.analyzer_config.get("config", {}).get("semanticSimilarityThreshold", 0.75)
+        paraphrase_threshold = self.analyzer_config.get("config", {}).get("paraphraseThreshold", 0.6)
+        max_evidence_length = self.analyzer_config.get("config", {}).get("maxEvidenceLength", 200)
+        
+        # Use semantic similarity to find matches
+        best_section, similarity = self._find_most_similar_section(document_text, target_clause)
+        
+        if similarity >= semantic_threshold:
+            return {
+                "clausePresent": True,
+                "matchType": "Semantic",
+                "evidenceQuote": best_section[:max_evidence_length] if best_section else "",
+                "confidence": float(similarity),
+                "targetClause": target_clause
+            }
+        elif similarity > paraphrase_threshold:
+            # Lower confidence semantic match
+            return {
+                "clausePresent": True,
+                "matchType": "Paraphrase",
+                "evidenceQuote": best_section[:max_evidence_length] if best_section else "",
+                "confidence": float(similarity),
+                "targetClause": target_clause
+            }
+        return None
+
+    def _check_word_overlap_match(self, document_text: str, target_clause: str) -> Optional[Dict[str, Any]]:
+        """
+        Check for match using word overlap (fallback method).
+        
+        Args:
+            document_text: Full document text
+            target_clause: Target clause to match
+            
+        Returns:
+            Result dictionary if found, None otherwise
+        """
+        doc_lower = document_text.lower()
+        clause_lower = target_clause.lower()
+        
+        # Calculate word overlap
+        clause_words = set(clause_lower.split())
+        doc_words = set(doc_lower.split())
+        overlap = clause_words.intersection(doc_words)
+        overlap_ratio = len(overlap) / len(clause_words) if clause_words else 0
+        
+        word_overlap_threshold = self.analyzer_config.get("config", {}).get("wordOverlapThreshold", 0.6)
+
+        if overlap_ratio > word_overlap_threshold:
+            # Find best matching section
+            evidence = self._find_best_match(document_text, target_clause)
+            return {
+                "clausePresent": True,
+                "matchType": "Paraphrase",
+                "evidenceQuote": evidence,
+                "confidence": overlap_ratio,
+                "targetClause": target_clause
+            }
+        return None
+
     def _analyze_for_clause(self, document_text: str, target_clause: str) -> Dict[str, Any]:
         """
         Analyze document text to determine if the target clause is present.
@@ -309,74 +527,20 @@ class ClauseChecker:
         Returns:
             Dictionary with analysis results
         """
-        # Convert to lowercase for comparison
-        doc_lower = document_text.lower()
-        clause_lower = target_clause.lower()
+        # Try exact match first
+        result = self._check_exact_match(document_text, target_clause)
+        if result:
+            return result
 
-        # Check for exact match
-        if clause_lower in doc_lower:
-            # Find the exact location and extract surrounding context
-            start_idx = doc_lower.index(clause_lower)
-            end_idx = start_idx + len(target_clause)
-            
-            # Extract evidence with some context
-            context_start = max(0, start_idx - 50)
-            context_end = min(len(document_text), end_idx + 50)
-            evidence = document_text[context_start:context_end].strip()
-
-            return {
-                "clausePresent": True,
-                "matchType": "Exact",
-                "evidenceQuote": evidence,
-                "confidence": 1.0,
-                "targetClause": target_clause
-            }
-
-        # Check if semantic comparison is enabled
-        use_semantic = self.analyzer_config.get("config", {}).get("useSemanticComparison", True)
-        semantic_threshold = self.analyzer_config.get("config", {}).get("semanticSimilarityThreshold", 0.75)
+        # Try semantic match
+        result = self._check_semantic_match(document_text, target_clause)
+        if result:
+            return result
         
-        if use_semantic:
-            # Use semantic similarity to find matches
-            best_section, similarity = self._find_most_similar_section(document_text, target_clause)
-            
-            if similarity >= semantic_threshold:
-                return {
-                    "clausePresent": True,
-                    "matchType": "Semantic",
-                    "evidenceQuote": best_section[:200] if best_section else "",
-                    "confidence": float(similarity),
-                    "targetClause": target_clause
-                }
-            elif similarity > 0.6:
-                # Lower confidence semantic match
-                return {
-                    "clausePresent": True,
-                    "matchType": "Paraphrase",
-                    "evidenceQuote": best_section[:200] if best_section else "",
-                    "confidence": float(similarity),
-                    "targetClause": target_clause
-                }
-        
-        # Fallback to word-overlap method for paraphrase detection
-        # (used when semantic is disabled OR when semantic similarity is too low)
-        clause_words = set(clause_lower.split())
-        doc_words = set(doc_lower.split())
-        
-        # Calculate word overlap
-        overlap = clause_words.intersection(doc_words)
-        overlap_ratio = len(overlap) / len(clause_words) if clause_words else 0
-
-        if overlap_ratio > 0.6:  # If more than 60% words match
-            # Find best matching section
-            evidence = self._find_best_match(document_text, target_clause)
-            return {
-                "clausePresent": True,
-                "matchType": "Paraphrase",
-                "evidenceQuote": evidence,
-                "confidence": overlap_ratio,
-                "targetClause": target_clause
-            }
+        # Try word overlap match
+        result = self._check_word_overlap_match(document_text, target_clause)
+        if result:
+            return result
 
         # No match found
         return {
@@ -398,8 +562,8 @@ class ClauseChecker:
         Returns:
             Best matching text snippet
         """
-        # Split document into sentences or paragraphs
-        sentences = document_text.split('.')
+        # Split document into sentences
+        sentences = self._split_into_sentences(document_text)
         clause_words = set(target_clause.lower().split())
         
         best_score = 0
@@ -414,9 +578,10 @@ class ClauseChecker:
                 best_score = score
                 best_sentence = sentence.strip()
         
-        # Return the sentence with some context
+        # Return the sentence with configured length limit
         if best_sentence:
-            return best_sentence[:200]  # Limit to 200 characters
+            max_evidence_length = self.analyzer_config.get("config", {}).get("maxEvidenceLength", 200)
+            return best_sentence[:max_evidence_length]  # Use configured limit
         return ""
 
     def get_analyzer_config(self) -> Dict[str, Any]:
