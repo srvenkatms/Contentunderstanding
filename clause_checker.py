@@ -3,6 +3,25 @@ Azure Content Understanding Clause Checker
 
 This module provides functionality to check if a specific clause exists in a document
 using Azure Document Intelligence (Content Understanding) service with semantic comparison.
+
+The module supports multiple matching strategies:
+- Exact match: Direct text matching with configurable context
+- Semantic match: AI-powered similarity using embeddings (requires Azure OpenAI)
+- Paraphrase match: Word overlap and TF-IDF similarity
+- Missing: No match found
+
+Configuration is loaded from analyzer_config.json and can be customized for different
+use cases. The module gracefully degrades when optional dependencies are not available.
+
+Example:
+    >>> from clause_checker import ClauseChecker
+    >>> checker = ClauseChecker()
+    >>> result = checker.check_clause("contract.pdf", "confidentiality clause")
+    >>> print(f"Found: {result['clausePresent']}, Type: {result['matchType']}")
+
+Attributes:
+    OPENAI_AVAILABLE (bool): Whether Azure OpenAI SDK is available
+    SKLEARN_AVAILABLE (bool): Whether scikit-learn is available for TF-IDF
 """
 
 import os
@@ -35,6 +54,27 @@ except ImportError:
 class ClauseChecker:
     """
     A class to check for clause existence in documents using Azure Content Understanding.
+    
+    This class provides intelligent document analysis with multiple matching strategies
+    for finding clauses or similar content in documents. It supports exact matching,
+    semantic similarity (with Azure OpenAI), and word overlap methods.
+    
+    The checker automatically selects the best available matching method based on
+    available dependencies and configuration settings.
+    
+    Attributes:
+        client (DocumentIntelligenceClient): Azure Document Intelligence client
+        endpoint (str): Azure Document Intelligence endpoint URL
+        key (str): Azure Document Intelligence API key
+        analyzer_config (Dict): Configuration for the analyzer
+        openai_client (Optional[AzureOpenAI]): Azure OpenAI client if available
+        
+    Example:
+        >>> checker = ClauseChecker()
+        >>> result = checker.check_clause("document.pdf", "payment terms")
+        >>> if result['clausePresent']:
+        ...     print(f"Found {result['matchType']} match")
+        ...     print(f"Evidence: {result['evidenceQuote']}")
     """
 
     def __init__(self, endpoint: Optional[str] = None, key: Optional[str] = None):
@@ -292,6 +332,39 @@ class ClauseChecker:
         union = words1.union(words2)
         return len(intersection) / len(union) if union else 0.0
 
+    def _split_into_sentences(self, text: str) -> List[str]:
+        """
+        Split text into sentences with better handling of abbreviations and edge cases.
+        
+        Args:
+            text: Text to split
+            
+        Returns:
+            List of sentences
+        """
+        # Simple sentence splitting that handles common abbreviations
+        import re
+        
+        # Replace common abbreviations temporarily to avoid splitting on them
+        text = re.sub(r'\bDr\.', 'Dr<DOT>', text)
+        text = re.sub(r'\bMr\.', 'Mr<DOT>', text)
+        text = re.sub(r'\bMrs\.', 'Mrs<DOT>', text)
+        text = re.sub(r'\bMs\.', 'Ms<DOT>', text)
+        text = re.sub(r'\bInc\.', 'Inc<DOT>', text)
+        text = re.sub(r'\bLtd\.', 'Ltd<DOT>', text)
+        text = re.sub(r'\bCo\.', 'Co<DOT>', text)
+        text = re.sub(r'\bCorp\.', 'Corp<DOT>', text)
+        text = re.sub(r'\bv\d+\.\d+', lambda m: m.group().replace('.', '<DOT>'), text)  # version numbers
+        text = re.sub(r'\$\d+\.\d+', lambda m: m.group().replace('.', '<DOT>'), text)  # currency
+        
+        # Split on periods followed by space and capital letter, or end of string
+        sentences = re.split(r'\.\s+(?=[A-Z])|\.(?=\s*$)', text)
+        
+        # Restore abbreviations
+        sentences = [s.replace('<DOT>', '.').strip() for s in sentences if s.strip()]
+        
+        return sentences
+
     def _find_most_similar_section(self, document_text: str, target_clause: str, 
                                    window_size: Optional[int] = None) -> Tuple[str, float]:
         """
@@ -316,7 +389,7 @@ class ClauseChecker:
         best_section = ""
         
         # Split into sentences for better context
-        sentences = [s.strip() for s in document_text.split('.') if s.strip()]
+        sentences = self._split_into_sentences(document_text)
         
         # Check each sentence and surrounding context
         for i, sentence in enumerate(sentences):
@@ -488,8 +561,8 @@ class ClauseChecker:
         Returns:
             Best matching text snippet
         """
-        # Split document into sentences or paragraphs
-        sentences = document_text.split('.')
+        # Split document into sentences
+        sentences = self._split_into_sentences(document_text)
         clause_words = set(target_clause.lower().split())
         
         best_score = 0
@@ -504,7 +577,7 @@ class ClauseChecker:
                 best_score = score
                 best_sentence = sentence.strip()
         
-        # Return the sentence with some context
+        # Return the sentence with configured length limit
         if best_sentence:
             max_evidence_length = self.analyzer_config.get("config", {}).get("maxEvidenceLength", 200)
             return best_sentence[:max_evidence_length]  # Use configured limit
