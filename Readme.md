@@ -2,6 +2,8 @@
 
 A Python application that uses Azure Document Intelligence (Content Understanding) to check whether a specific clause exists in a document and returns evidence.
 
+📖 **[Read the Complete Technical Documentation](./TECHNICAL_DOCUMENTATION.md)** - Comprehensive guide covering Azure Content Understanding, LLMs integration, and Python architecture.
+
 ## Features
 
 - 🔍 **Clause Detection**: Automatically detects if a target clause exists in documents
@@ -180,17 +182,35 @@ Get the current analyzer configuration.
 #### `update_analyzer_config(config: Dict[str, Any]) -> None`
 Update the analyzer configuration.
 
+## Documentation
+
+- **[README.md](./Readme.md)** - Quick start guide and basic usage
+- **[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md)** - Complete technical documentation covering:
+  - Azure Content Understanding role and integration
+  - LLM integration (GPT-4 and embeddings)
+  - Python code architecture and design patterns
+  - System components and data flow
+  - Semantic comparison implementation
+  - API reference with code examples
+  - Configuration management
+  - Performance optimization
+  - Security best practices
+- **[QUICKSTART.md](./QUICKSTART.md)** - Quick setup and usage examples
+
 ## Project Structure
 
 ```
 Contentunderstanding/
-├── .env.example              # Example environment variables
-├── .gitignore               # Git ignore rules
-├── analyzer_config.json     # Custom analyzer configuration
-├── clause_checker.py        # Main ClauseChecker class
-├── example_usage.py         # Example usage script
-├── requirements.txt         # Python dependencies
-└── Readme.md               # This file
+├── .env.example                    # Example environment variables
+├── .gitignore                      # Git ignore rules
+├── analyzer_config.json            # Custom analyzer configuration
+├── clause_checker.py               # Main ClauseChecker class
+├── example_usage.py                # Example usage script
+├── requirements.txt                # Python dependencies
+├── test_clause_checker.py          # Unit tests
+├── Readme.md                       # This file
+├── QUICKSTART.md                   # Quick start guide
+└── TECHNICAL_DOCUMENTATION.md      # Complete technical documentation
 ```
 
 ## How It Works
