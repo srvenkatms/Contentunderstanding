@@ -65,6 +65,76 @@ The application uses a custom analyzer with the following configuration:
 }
 ```
 
+## Quick Start
+
+> **📝 Note for Existing Users**: The existing SDK-based approach (`clause_checker.py`, `example_usage.py`) continues to work without changes. The new REST API approach is an addition, not a replacement. You can use either or both methods.
+
+There are two ways to use this application:
+
+1. **REST API-based approach** (Recommended for new projects) - Uses Azure Content Understanding REST API with Terraform infrastructure
+2. **SDK-based approach** (Existing) - Uses Azure Document Intelligence Python SDK
+
+### Option 1: REST API Setup (Recommended)
+
+#### Step 1: Deploy Azure Infrastructure with Terraform
+
+```bash
+# Navigate to terraform directory
+cd terraform
+
+# Initialize Terraform
+terraform init
+
+# Review the deployment plan
+terraform plan
+
+# Deploy resources
+terraform apply
+
+# Get the endpoint and key
+terraform output content_understanding_endpoint
+terraform output -raw content_understanding_key
+```
+
+See [terraform/README.md](terraform/README.md) for detailed Terraform instructions.
+
+#### Step 2: Set Up Environment Variables
+
+```bash
+# Export credentials (replace with your actual values from Terraform output)
+export AZURE_CONTENT_UNDERSTANDING_ENDPOINT="<your-endpoint>"
+export AZURE_CONTENT_UNDERSTANDING_KEY="<your-key>"
+
+# Or add to .env file
+echo "AZURE_CONTENT_UNDERSTANDING_ENDPOINT=<your-endpoint>" >> .env
+echo "AZURE_CONTENT_UNDERSTANDING_KEY=<your-key>" >> .env
+```
+
+#### Step 3: Update Analyzer Configuration
+
+```bash
+# Register the clause checker analyzer
+python update_analyzer.py
+
+# Or with custom schema
+python update_analyzer.py --schema my_schema.json --analyzer-id my-analyzer
+```
+
+#### Step 4: Check Clauses in Documents
+
+```bash
+# Analyze a document for a specific clause
+python check_clause_rest.py contract.pdf "confidentiality agreement"
+
+# Use custom analyzer
+python check_clause_rest.py document.pdf "liability clause" --analyzer-id clause-checker
+
+# Save results to file
+python check_clause_rest.py contract.pdf "payment terms" --output results.json
+```
+
+### Option 2: SDK Setup (Existing Method)
+
 ## Prerequisites
 
 - Python 3.8 or higher
@@ -92,8 +162,13 @@ cp .env.example .env
 
 4. Edit `.env` file with your Azure credentials:
 ```
+# For SDK-based approach
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
 AZURE_DOCUMENT_INTELLIGENCE_KEY=your-api-key-here
+
+# For REST API-based approach
+AZURE_CONTENT_UNDERSTANDING_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
+AZURE_CONTENT_UNDERSTANDING_KEY=your-api-key-here
 
 # Optional: For enhanced semantic comparison with Azure OpenAI embeddings
 AZURE_OPENAI_ENDPOINT=https://your-openai-resource.openai.azure.com/
@@ -102,7 +177,49 @@ AZURE_OPENAI_KEY=your-openai-api-key-here
 
 ## Usage
 
-### Basic Usage
+### REST API Usage (Recommended)
+
+#### Command Line
+
+```bash
+# Basic clause checking
+python check_clause_rest.py contract.pdf "confidentiality agreement"
+
+# Use custom analyzer (after registering with update_analyzer.py)
+python check_clause_rest.py document.pdf "liability clause" --analyzer-id clause-checker
+
+# Save results to JSON file
+python check_clause_rest.py contract.pdf "payment terms" --output results.json
+
+# Quiet mode (only output results)
+python check_clause_rest.py document.pdf "clause" --quiet
+```
+
+#### Python API
+
+```python
+from content_understanding_rest import ContentUnderstandingClient
+
+# Initialize the client
+client = ContentUnderstandingClient()
+
+# Analyze a document
+result = client.analyze_document(
+    document_path="contract.pdf",
+    target_clause="confidentiality agreement",
+    analyzer_id="prebuilt-document"  # or your custom analyzer ID
+)
+
+# Access results
+print(f"Clause Present: {result['clausePresent']}")
+print(f"Match Type: {result['matchType']}")
+print(f"Evidence: {result['evidenceQuote']}")
+print(f"Confidence: {result['confidence']}")
+```
+
+### SDK Usage (Existing Method)
+
+#### Basic Python Usage
 
 ```python
 from clause_checker import ClauseChecker
@@ -123,7 +240,7 @@ print(f"Evidence: {result['evidenceQuote']}")
 print(f"Confidence: {result['confidence']}")
 ```
 
-### Command Line Usage
+#### Command Line Usage
 
 ```bash
 python example_usage.py <document_path> <target_clause>
@@ -203,14 +320,27 @@ Update the analyzer configuration.
 Contentunderstanding/
 ├── .env.example                    # Example environment variables
 ├── .gitignore                      # Git ignore rules
-├── analyzer_config.json            # Custom analyzer configuration
-├── clause_checker.py               # Main ClauseChecker class
-├── example_usage.py                # Example usage script
 ├── requirements.txt                # Python dependencies
-├── test_clause_checker.py          # Unit tests
 ├── Readme.md                       # This file
 ├── QUICKSTART.md                   # Quick start guide
-└── TECHNICAL_DOCUMENTATION.md      # Complete technical documentation
+├── TECHNICAL_DOCUMENTATION.md      # Complete technical documentation
+│
+├── terraform/                      # Terraform infrastructure (NEW)
+│   ├── main.tf                     # Main Terraform configuration
+│   ├── variables.tf                # Input variables
+│   ├── outputs.tf                  # Output values
+│   └── README.md                   # Terraform deployment guide
+│
+├── analyzer_config.json            # Analyzer configuration (SDK)
+├── analyzer_schema.json            # Analyzer schema (REST API - NEW)
+│
+├── clause_checker.py               # ClauseChecker class (SDK-based)
+├── example_usage.py                # Example usage script (SDK)
+├── test_clause_checker.py          # Unit tests (SDK)
+│
+├── content_understanding_rest.py   # REST API client (NEW)
+├── update_analyzer.py              # Analyzer update script (NEW)
+└── check_clause_rest.py            # Clause check script (NEW)
 ```
 
 ## How It Works
@@ -279,6 +409,63 @@ You can customize the semantic comparison behavior by updating the `analyzer_con
   }
 }
 ```
+
+## Azure AI Foundry / Azure OpenAI Integration
+
+### Is Azure OpenAI Required?
+
+**No, Azure OpenAI is optional.** The clause checking functionality works without it, using built-in fallback methods:
+
+- **Without Azure OpenAI**: Uses TF-IDF and word overlap for semantic comparison
+- **With Azure OpenAI**: Uses advanced embedding models for better semantic similarity detection
+
+### When to Use Azure OpenAI
+
+Consider adding Azure OpenAI if you need:
+
+1. **Enhanced Semantic Detection**: Better accuracy in identifying paraphrased clauses
+2. **Advanced Embeddings**: text-embedding-3-large and text-embedding-3-small models
+3. **LLM Capabilities**: GPT-4 for advanced text understanding (optional)
+
+### How to Add Azure OpenAI Support
+
+#### Option 1: Terraform (Recommended)
+
+See the optional Azure OpenAI configuration in [terraform/README.md](terraform/README.md). Add this to your `main.tf`:
+
+```hcl
+resource "azurerm_cognitive_account" "openai" {
+  name                = "${var.resource_name}-openai"
+  location            = azurerm_resource_group.content_understanding.location
+  resource_group_name = azurerm_resource_group.content_understanding.name
+  kind                = "OpenAI"
+  sku_name            = "S0"
+  tags                = var.tags
+}
+```
+
+#### Option 2: Azure Portal
+
+1. Create an Azure OpenAI resource in the Azure Portal
+2. Deploy an embedding model (e.g., text-embedding-3-small)
+3. Get the endpoint and key
+4. Add to your `.env` file:
+
+```bash
+AZURE_OPENAI_ENDPOINT=https://your-openai-resource.openai.azure.com/
+AZURE_OPENAI_KEY=your-openai-key
+```
+
+### Azure AI Foundry
+
+Azure AI Foundry provides a unified experience for building AI applications. While not required for this application, it can be used to:
+
+- Manage multiple AI resources in one place
+- Monitor and track API usage
+- Deploy and manage custom models
+- Orchestrate complex AI workflows
+
+For basic clause checking, the standalone Azure AI Services resource (deployed via Terraform) is sufficient.
 
 ## Future Enhancements
 
