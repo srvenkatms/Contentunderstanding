@@ -6,11 +6,14 @@
     "enableOcr": true,
     "enableLayout": true,
     "returnDetails": true,
-    "estimateFieldSourceAndConfidence": true
+    "estimateFieldSourceAndConfidence": true,
+    "useSemanticComparison": true,
+    "semanticSimilarityThreshold": 0.75
   },
   "models": {
     "completion": "gpt-4.1-mini",
-    "embedding": "text-embedding-3-large"
+    "embedding": "text-embedding-3-large",
+    "embeddingFallback": "text-embedding-3-small"
   },
   "fieldSchema": {
     "name": "ClauseCheck",
