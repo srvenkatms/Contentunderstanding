@@ -1,0 +1,41 @@
+{
+  "analyzerId": "clause-checker",
+  "description": "Checks whether a target clause exists in a document and returns evidence.",
+  "baseAnalyzerId": "prebuilt-document",
+  "config": {
+    "enableOcr": true,
+    "enableLayout": true,
+    "returnDetails": true,
+    "estimateFieldSourceAndConfidence": true
+  },
+  "models": {
+    "completion": "gpt-4.1-mini",
+    "embedding": "text-embedding-3-large"
+  },
+  "fieldSchema": {
+    "name": "ClauseCheck",
+    "fields": {
+      "targetClause": {
+        "type": "string",
+        "description": "The clause we are looking for (provided by the caller).",
+        "method": "generate"
+      },
+      "clausePresent": {
+        "type": "boolean",
+        "description": "True if the document contains the clause or a clear paraphrase; otherwise false.",
+        "method": "classify"
+      },
+      "matchType": {
+        "type": "string",
+        "description": "Return one of: Exact, Paraphrase, Missing.",
+        "method": "classify"
+      },
+      "evidenceQuote": {
+        "type": "string",
+        "description": "A short quote from the document that supports the decision.",
+        "method": "extract",
+        "estimateSourceAndConfidence": true
+      }
+    }
+  }
+}
