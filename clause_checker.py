@@ -232,7 +232,7 @@ class ClauseChecker:
             Similarity score between 0 and 1
         """
         # Try Azure OpenAI embeddings first
-        if self.openai_client:
+        if self.openai_client and SKLEARN_AVAILABLE:
             embedding_model = self.analyzer_config.get("models", {}).get("embeddingFallback", "text-embedding-3-small")
             emb1 = self._get_embedding_openai(text1, embedding_model)
             emb2 = self._get_embedding_openai(text2, embedding_model)

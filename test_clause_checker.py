@@ -202,8 +202,15 @@ class TestClauseChecker(unittest.TestCase):
         
         result = checker._analyze_for_clause(document_text, target_clause)
         
-        # Should find some match (Semantic or Paraphrase depending on similarity)
-        self.assertTrue(result['clausePresent'] or result['matchType'] in ['Semantic', 'Paraphrase', 'Missing'])
+        # Result should be deterministic based on the text and semantic comparison
+        if result['clausePresent']:
+            # If clause is found, it should be via Semantic or Paraphrase match
+            self.assertIn(result['matchType'], ['Semantic', 'Paraphrase'])
+            self.assertGreater(result['confidence'], 0.0)
+        else:
+            # If not found, it should be Missing
+            self.assertEqual(result['matchType'], 'Missing')
+            self.assertEqual(result['confidence'], 0.0)
         
     @patch('clause_checker.DocumentIntelligenceClient')
     def test_find_most_similar_section(self, mock_client):
