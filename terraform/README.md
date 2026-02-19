@@ -4,7 +4,7 @@ This directory contains Terraform configuration to provision Azure resources req
 
 ## Prerequisites
 
-1. **Azure CLI** - [Install Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
+1. **Azure CLI** - [Install Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
 2. **Terraform** - [Install Terraform](https://www.terraform.io/downloads) (version >= 1.0)
 3. **Azure Subscription** - Active Azure subscription with permissions to create resources
 

@@ -108,7 +108,7 @@ class ContentUnderstandingClient:
                 try:
                     error_details = e.response.json()
                     error_message += f"\nDetails: {json.dumps(error_details, indent=2)}"
-                except:
+                except Exception:
                     error_message += f"\nResponse: {e.response.text}"
             raise Exception(error_message) from e
     
@@ -196,7 +196,7 @@ class ContentUnderstandingClient:
                 try:
                     error_details = e.response.json()
                     error_message += f"\nDetails: {json.dumps(error_details, indent=2)}"
-                except:
+                except Exception:
                     error_message += f"\nResponse: {e.response.text}"
             raise Exception(error_message) from e
     
