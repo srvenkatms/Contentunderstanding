@@ -33,8 +33,7 @@ from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 from dotenv import load_dotenv
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Get logger for this module - applications should configure logging at root level
 logger = logging.getLogger(__name__)
 
 try:
@@ -354,8 +353,10 @@ class ClauseChecker:
         text = re.sub(r'\bLtd\.', 'Ltd<DOT>', text)
         text = re.sub(r'\bCo\.', 'Co<DOT>', text)
         text = re.sub(r'\bCorp\.', 'Corp<DOT>', text)
-        text = re.sub(r'\bv\d+\.\d+', lambda m: m.group().replace('.', '<DOT>'), text)  # version numbers
-        text = re.sub(r'\$\d+\.\d+', lambda m: m.group().replace('.', '<DOT>'), text)  # currency
+        # Handle various version number formats (v1.0, 1.0, 2.1.3, etc.)
+        text = re.sub(r'\b(?:v\d+|\d+)\.\d+(?:\.\d+)?\b', lambda m: m.group().replace('.', '<DOT>'), text)
+        # Handle currency with or without commas and decimals ($100, $1,234.56, $100.00, etc.)
+        text = re.sub(r'[$€£¥]\d{1,3}(?:,\d{3})*(?:\.\d{2})?', lambda m: m.group().replace('.', '<DOT>'), text)
         
         # Split on periods followed by space and capital letter, or end of string
         sentences = re.split(r'\.\s+(?=[A-Z])|\.(?=\s*$)', text)
