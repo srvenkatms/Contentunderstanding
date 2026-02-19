@@ -64,7 +64,7 @@ result = checker.check_clause("legal_doc.pdf", "liability limitation")
 {
   "targetClause": "confidentiality clause",
   "clausePresent": true,
-  "matchType": "Exact",
+  "matchType": "Exact",  // or "Semantic", "Paraphrase", "Missing"
   "evidenceQuote": "...relevant text from document...",
   "confidence": 1.0
 }
@@ -75,8 +75,22 @@ result = checker.check_clause("legal_doc.pdf", "liability limitation")
 | Type | Description | Confidence |
 |------|-------------|------------|
 | **Exact** | Clause appears verbatim | 1.0 |
-| **Paraphrase** | Similar meaning, different wording | 0.6 - 1.0 |
+| **Semantic** | High semantic similarity using embeddings | ≥ 0.75 |
+| **Paraphrase** | Similar meaning, different wording | 0.6 - 0.75 |
 | **Missing** | Clause not found | 0.0 |
+
+## Semantic Comparison
+
+The application automatically uses the best available semantic comparison method:
+- **Azure OpenAI Embeddings** (if configured) - Best accuracy
+- **TF-IDF Similarity** (fallback) - Good accuracy, no external API needed
+- **Word Overlap** (ultimate fallback) - Basic matching
+
+To use Azure OpenAI embeddings, add these to your `.env`:
+```
+AZURE_OPENAI_ENDPOINT=https://your-openai-resource.openai.azure.com/
+AZURE_OPENAI_KEY=your-openai-api-key-here
+```
 
 ## Troubleshooting
 

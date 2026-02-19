@@ -2,15 +2,29 @@
 Azure Content Understanding Clause Checker
 
 This module provides functionality to check if a specific clause exists in a document
-using Azure Document Intelligence (Content Understanding) service.
+using Azure Document Intelligence (Content Understanding) service with semantic comparison.
 """
 
 import os
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+import numpy as np
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 from dotenv import load_dotenv
+
+try:
+    from openai import AzureOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+try:
+    from sklearn.metrics.pairwise import cosine_similarity
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
 
 
 class ClauseChecker:
@@ -46,6 +60,22 @@ class ClauseChecker:
 
         # Load analyzer configuration
         self.analyzer_config = self._load_analyzer_config()
+        
+        # Initialize Azure OpenAI client if available and credentials provided
+        self.openai_client = None
+        self.openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.openai_key = os.getenv("AZURE_OPENAI_KEY")
+        
+        if OPENAI_AVAILABLE and self.openai_endpoint and self.openai_key:
+            try:
+                self.openai_client = AzureOpenAI(
+                    azure_endpoint=self.openai_endpoint,
+                    api_key=self.openai_key,
+                    api_version="2024-02-01"
+                )
+            except Exception as e:
+                print(f"Warning: Could not initialize Azure OpenAI client: {e}")
+                self.openai_client = None
 
     def _load_analyzer_config(self) -> Dict[str, Any]:
         """
@@ -72,11 +102,14 @@ class ClauseChecker:
                     "enableOcr": True,
                     "enableLayout": True,
                     "returnDetails": True,
-                    "estimateFieldSourceAndConfidence": True
+                    "estimateFieldSourceAndConfidence": True,
+                    "useSemanticComparison": True,
+                    "semanticSimilarityThreshold": 0.75
                 },
                 "models": {
                     "completion": "gpt-4.1-mini",
-                    "embedding": "text-embedding-3-large"
+                    "embedding": "text-embedding-3-large",
+                    "embeddingFallback": "text-embedding-3-small"
                 },
                 "fieldSchema": {
                     "name": "ClauseCheck",
@@ -143,6 +176,128 @@ class ClauseChecker:
 
         return analysis_result
 
+    def _get_embedding_openai(self, text: str, model: str = "text-embedding-3-small") -> Optional[List[float]]:
+        """
+        Get text embedding using Azure OpenAI.
+
+        Args:
+            text: Text to embed
+            model: Embedding model to use
+
+        Returns:
+            Embedding vector or None if failed
+        """
+        if not self.openai_client:
+            return None
+        
+        try:
+            response = self.openai_client.embeddings.create(
+                input=text,
+                model=model
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            print(f"Warning: OpenAI embedding failed: {e}")
+            return None
+
+    def _get_embedding_tfidf(self, texts: List[str]) -> np.ndarray:
+        """
+        Get TF-IDF based embeddings as fallback.
+
+        Args:
+            texts: List of texts to embed
+
+        Returns:
+            TF-IDF vectors
+        """
+        if not SKLEARN_AVAILABLE:
+            return None
+        
+        try:
+            vectorizer = TfidfVectorizer(max_features=384)
+            return vectorizer.fit_transform(texts).toarray()
+        except Exception as e:
+            print(f"Warning: TF-IDF embedding failed: {e}")
+            return None
+
+    def _calculate_semantic_similarity(self, text1: str, text2: str) -> float:
+        """
+        Calculate semantic similarity between two texts.
+
+        Args:
+            text1: First text
+            text2: Second text
+
+        Returns:
+            Similarity score between 0 and 1
+        """
+        # Try Azure OpenAI embeddings first
+        if self.openai_client:
+            embedding_model = self.analyzer_config.get("models", {}).get("embeddingFallback", "text-embedding-3-small")
+            emb1 = self._get_embedding_openai(text1, embedding_model)
+            emb2 = self._get_embedding_openai(text2, embedding_model)
+            
+            if emb1 and emb2:
+                # Calculate cosine similarity
+                emb1_array = np.array(emb1).reshape(1, -1)
+                emb2_array = np.array(emb2).reshape(1, -1)
+                similarity = cosine_similarity(emb1_array, emb2_array)[0][0]
+                return float(similarity)
+        
+        # Fallback to TF-IDF based similarity
+        if SKLEARN_AVAILABLE:
+            embeddings = self._get_embedding_tfidf([text1, text2])
+            if embeddings is not None and len(embeddings) == 2:
+                similarity = cosine_similarity(embeddings[0:1], embeddings[1:2])[0][0]
+                return float(similarity)
+        
+        # Ultimate fallback: word overlap
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        if not words1 or not words2:
+            return 0.0
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+        return len(intersection) / len(union) if union else 0.0
+
+    def _find_most_similar_section(self, document_text: str, target_clause: str, 
+                                   window_size: int = 200) -> tuple[str, float]:
+        """
+        Find the most semantically similar section in the document.
+
+        Args:
+            document_text: Full document text
+            target_clause: Target clause to match
+            window_size: Size of sliding window in characters
+
+        Returns:
+            Tuple of (best matching text, similarity score)
+        """
+        if len(document_text) < window_size:
+            similarity = self._calculate_semantic_similarity(document_text, target_clause)
+            return document_text, similarity
+        
+        best_similarity = 0.0
+        best_section = ""
+        
+        # Split into sentences for better context
+        sentences = [s.strip() for s in document_text.split('.') if s.strip()]
+        
+        # Check each sentence and surrounding context
+        for i, sentence in enumerate(sentences):
+            # Build context window (current sentence + neighbors)
+            start_idx = max(0, i - 1)
+            end_idx = min(len(sentences), i + 2)
+            context = '. '.join(sentences[start_idx:end_idx])
+            
+            similarity = self._calculate_semantic_similarity(context, target_clause)
+            
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_section = context
+        
+        return best_section, best_similarity
+
     def _analyze_for_clause(self, document_text: str, target_clause: str) -> Dict[str, Any]:
         """
         Analyze document text to determine if the target clause is present.
@@ -177,7 +332,34 @@ class ClauseChecker:
                 "targetClause": target_clause
             }
 
-        # Check for word-by-word match (paraphrase detection - simple version)
+        # Check if semantic comparison is enabled
+        use_semantic = self.analyzer_config.get("config", {}).get("useSemanticComparison", True)
+        semantic_threshold = self.analyzer_config.get("config", {}).get("semanticSimilarityThreshold", 0.75)
+        
+        if use_semantic:
+            # Use semantic similarity to find matches
+            best_section, similarity = self._find_most_similar_section(document_text, target_clause)
+            
+            if similarity >= semantic_threshold:
+                return {
+                    "clausePresent": True,
+                    "matchType": "Semantic",
+                    "evidenceQuote": best_section[:200] if best_section else "",
+                    "confidence": float(similarity),
+                    "targetClause": target_clause
+                }
+            elif similarity > 0.6:
+                # Lower confidence semantic match
+                return {
+                    "clausePresent": True,
+                    "matchType": "Paraphrase",
+                    "evidenceQuote": best_section[:200] if best_section else "",
+                    "confidence": float(similarity),
+                    "targetClause": target_clause
+                }
+        
+        # Fallback to word-overlap method for paraphrase detection
+        # (used when semantic is disabled OR when semantic similarity is too low)
         clause_words = set(clause_lower.split())
         doc_words = set(doc_lower.split())
         
