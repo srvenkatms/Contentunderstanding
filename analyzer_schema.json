@@ -1,0 +1,39 @@
+{
+  "azureOpenAISettings": {
+    "resourceName": "optional-openai-resource-name",
+    "deploymentName": "text-embedding-3-small"
+  },
+  "description": "Checks whether a target clause exists in a document and returns evidence with confidence scores.",
+  "fields": [
+    {
+      "name": "targetClause",
+      "type": "string",
+      "description": "The clause we are looking for (provided by the caller)"
+    },
+    {
+      "name": "clausePresent",
+      "type": "selectionMark",
+      "description": "True if the document contains the clause or a clear paraphrase; otherwise false"
+    },
+    {
+      "name": "matchType",
+      "type": "string",
+      "description": "Return one of: Exact, Semantic, Paraphrase, or Missing"
+    },
+    {
+      "name": "evidenceQuote",
+      "type": "string",
+      "description": "A short quote from the document that supports the decision"
+    },
+    {
+      "name": "confidence",
+      "type": "number",
+      "description": "Confidence score for the match (0.0 to 1.0)"
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "Source location in the document (page number or section)"
+    }
+  ]
+}
