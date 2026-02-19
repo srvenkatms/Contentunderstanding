@@ -24,10 +24,15 @@ class TestClauseChecker(unittest.TestCase):
     def tearDown(self):
         """Clean up after tests."""
         # Remove test environment variables
-        if 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT' in os.environ:
-            del os.environ['AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT']
-        if 'AZURE_DOCUMENT_INTELLIGENCE_KEY' in os.environ:
-            del os.environ['AZURE_DOCUMENT_INTELLIGENCE_KEY']
+        env_vars_to_cleanup = [
+            'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT',
+            'AZURE_DOCUMENT_INTELLIGENCE_KEY',
+            'AZURE_OPENAI_ENDPOINT',
+            'AZURE_OPENAI_KEY'
+        ]
+        for var in env_vars_to_cleanup:
+            if var in os.environ:
+                del os.environ[var]
 
     @patch('clause_checker.DocumentIntelligenceClient')
     def test_initialization_with_env_vars(self, mock_client):
